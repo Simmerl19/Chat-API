@@ -4,36 +4,23 @@
  */
 class WhatsMediaUploader
 {
-    protected static function sendData($host, $POST, $HEAD, $filepath, $mediafile, $TAIL)
+    protected static function sendData($url, $header, $hBAOS, $filepath, $mediafile, $fBAOS)
     {
-        $sock = fsockopen("ssl://" . $host, 443);
-
-        fwrite($sock, $POST);
-        fwrite($sock, $HEAD);
-
-        //write file data
-        $buf       = 1024;
-        $totalread = 0;
-        $fp        = fopen($filepath, "r");
-        while ($totalread < $mediafile['filesize']) {
-            $buff = fread($fp, $buf);
-            fwrite($sock, $buff, $buf);
-            $totalread += $buf;
-        }
-        //echo $TAIL;
-        fwrite($sock, $TAIL);
-        sleep(1);
-
-        $data = fgets($sock, 8192);
-        $data .= fgets($sock, 8192);
-        $data .= fgets($sock, 8192);
-        $data .= fgets($sock, 8192);
-        $data .= fgets($sock, 8192);
-        $data .= fgets($sock, 8192);
-        $data .= fgets($sock, 8192);
-        fclose($sock);
-
-        list($header, $body) = preg_split("/\R\R/", $data, 2);
+        $host = parse_url($url, PHP_URL_HOST);
+    	$ar=array(
+		    	"ssl"=>array(
+        			"cafile"		=> __DIR__."/ca-certificates.crt",
+        			"verify_peer"	=> false,
+        			"verify_peer_name"=> false,
+    			),
+    			"http"=>array(
+    					"method"	=> 'POST',
+    					"header"	=> $header,
+    					"content"	=> $hBAOS.file_get_contents($filepath).$fBAOS
+    			)
+		);
+    	$context = stream_context_create($ar);
+    	$body = file_get_contents($url,false,$context);
 
         $json = json_decode($body);
         if ( ! is_null($json)) {
@@ -77,12 +64,11 @@ class WhatsMediaUploader
 
         $contentlength = strlen($hBAOS) + strlen($fBAOS) + $mediafile['filesize'];
 
-        $POST = "POST " . $url . "\r\n";
-        $POST .= "Content-Type: multipart/form-data; boundary=" . $boundary . "\r\n";
-        $POST .= "Host: " . $host . "\r\n";
-        $POST .= "User-Agent: " . Constants::WHATSAPP_USER_AGENT . "\r\n";
-        $POST .= "Content-Length: " . $contentlength . "\r\n\r\n";
+        $header = "Content-Type: multipart/form-data; boundary=" . $boundary . "\r\n";
+        $header .= "Host: " . $host . "\r\n";
+        $header .= "User-Agent: " . WhatsProt::WHATSAPP_USER_AGENT . "\r\n";
+        $header .= "Content-Length: " . $contentlength . "\r\n\r\n";
 
-        return self::sendData($host, $POST, $hBAOS, $filepath, $mediafile, $fBAOS);
+        return self::sendData($url, $header, $hBAOS, $filepath, $mediafile, $fBAOS);
     }
 }
